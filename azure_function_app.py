@@ -1,3 +1,4 @@
+#check models name first
 import azure.functions as func
 import pickle
 import json
@@ -6,10 +7,8 @@ from datetime import datetime, timedelta
 import logging
 from azure.storage.blob import BlobClient
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# Global model variable
 model_data = None
 model = None
 feature_columns = None
@@ -22,20 +21,16 @@ def load_model():
         logger.info("Loading model from Blob Storage...")
         
         try:
-            # Connection string from environment
             connection_string = os.environ['AZURE_STORAGE_CONNECTION_STRING']
             
-            # Download model from blob
             blob_client = BlobClient.from_connection_string(
                 connection_string,
                 container_name='models',
                 blob_name='demand_forecast_model.pkl'
             )
             
-            # Download to bytes
             model_bytes = blob_client.download_blob().readall()
             
-            # Deserialize
             model_data = pickle.loads(model_bytes)
             model = model_data['model']
             feature_columns = model_data['feature_columns']
@@ -50,7 +45,6 @@ def create_features(data_dict):
     """Create features from input data"""
     features = {}
     
-    # DateTime features
     if 'date' in data_dict:
         date_obj = datetime.fromisoformat(data_dict['date'])
         features['month'] = date_obj.month
@@ -64,12 +58,10 @@ def create_features(data_dict):
         features['dayofweek'] = today.weekday()
         features['week'] = today.isocalendar()[1]
     
-    # Sales lag features
     features['sales_lag_1'] = data_dict.get('sales_lag_1', 0)
     features['sales_lag_7'] = data_dict.get('sales_lag_7', 0)
     features['sales_lag_30'] = data_dict.get('sales_lag_30', 0)
     
-    # Moving average features
     features['sales_ma_7'] = data_dict.get('sales_ma_7', 0)
     features['sales_ma_30'] = data_dict.get('sales_ma_30', 0)
     
@@ -79,10 +71,8 @@ def make_prediction(features):
     """Make prediction using loaded model"""
     import numpy as np
     
-    # Create feature array in correct order
     feature_array = np.array([[features[col] for col in feature_columns]])
     
-    # Predict
     prediction = model.predict(feature_array)[0]
     
     return float(prediction)
@@ -105,10 +95,8 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
 def predict(req: func.HttpRequest) -> func.HttpResponse:
     """Make single prediction"""
     try:
-        # Load model if not loaded
         load_model()
         
-        # Get request body
         req_body = req.get_json()
         
         if 'features' not in req_body:
@@ -118,10 +106,8 @@ def predict(req: func.HttpRequest) -> func.HttpResponse:
                 mimetype='application/json'
             )
         
-        # Create features
         features = create_features(req_body['features'])
         
-        # Make prediction
         prediction = make_prediction(features)
         
         return func.HttpResponse(
@@ -147,13 +133,10 @@ def predict(req: func.HttpRequest) -> func.HttpResponse:
 def forecast(req: func.HttpRequest) -> func.HttpResponse:
     """Generate forecast for multiple days"""
     try:
-        # Load model if not loaded
         load_model()
         
-        # Get request body
         req_body = req.get_json()
         
-        # Get parameters
         days_ahead = req_body.get('days_ahead', 30)
         last_sales = req_body.get('last_sales', {})
         
@@ -171,7 +154,6 @@ def forecast(req: func.HttpRequest) -> func.HttpResponse:
         for i in range(days_ahead):
             future_date = current_date + timedelta(days=i+1)
             
-            # Create features for future date
             features = {
                 'date': future_date.isoformat(),
                 'sales_lag_1': last_sales.get('sales_lag_1', 0),
@@ -181,10 +163,8 @@ def forecast(req: func.HttpRequest) -> func.HttpResponse:
                 'sales_ma_30': last_sales.get('sales_ma_30', 0)
             }
             
-            # Create feature dict
             feature_dict = create_features(features)
             
-            # Make prediction
             pred = make_prediction(feature_dict)
             
             forecast_data.append({
@@ -219,10 +199,8 @@ def forecast(req: func.HttpRequest) -> func.HttpResponse:
 def batch_predict(req: func.HttpRequest) -> func.HttpResponse:
     """Make predictions for multiple records"""
     try:
-        # Load model if not loaded
         load_model()
         
-        # Get request body
         req_body = req.get_json()
         
         if 'records' not in req_body:
