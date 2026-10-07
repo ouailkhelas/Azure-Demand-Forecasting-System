@@ -3,7 +3,7 @@
 Data Preparation Script for Demand Forecasting
 Cleans, validates, and prepares data for ML model training
 """
-
+#you can modify depend your need 
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -20,7 +20,6 @@ class DataPreparation:
         print(f"   Shape: {self.df.shape}")
         print(f"   Columns: {self.df.columns.tolist()}")
         
-        # Check required columns
         required_cols = ['date', 'sales', 'product_id']
         missing_cols = [col for col in required_cols if col not in self.df.columns]
         
@@ -37,11 +36,9 @@ class DataPreparation:
         initial_missing = self.df.isnull().sum().sum()
         print(f"   Initial missing values: {initial_missing}")
         
-        # Forward fill for time series data
         self.df['sales'] = self.df.groupby('product_id')['sales'].fillna(method='ffill')
         self.df['sales'] = self.df.groupby('product_id')['sales'].fillna(method='bfill')
         
-        # Drop if still missing
         self.df = self.df.dropna(subset=['sales'])
         
         final_missing = self.df.isnull().sum().sum()
@@ -73,21 +70,17 @@ class DataPreparation:
         """Create time series features"""
         print("\n✨ Creating features...")
         
-        # Convert date to datetime
         self.df['date'] = pd.to_datetime(self.df['date'])
         
-        # Time-based features
         self.df['month'] = self.df['date'].dt.month
         self.df['quarter'] = self.df['date'].dt.quarter
         self.df['dayofweek'] = self.df['date'].dt.dayofweek
         self.df['week'] = self.df['date'].dt.isocalendar().week
         
-        # Lag features (previous day, week, month sales)
         self.df['sales_lag_1'] = self.df.groupby('product_id')['sales'].shift(1)
         self.df['sales_lag_7'] = self.df.groupby('product_id')['sales'].shift(7)
         self.df['sales_lag_30'] = self.df.groupby('product_id')['sales'].shift(30)
         
-        # Rolling averages
         self.df['sales_ma_7'] = self.df.groupby('product_id')['sales'].transform(
             lambda x: x.rolling(window=7, min_periods=1).mean()
         )
@@ -95,7 +88,6 @@ class DataPreparation:
             lambda x: x.rolling(window=30, min_periods=1).mean()
         )
         
-        # Handle NaN from lag/rolling operations
         self.df = self.df.fillna(method='bfill').fillna(method='ffill')
         
         print(f"   Created features: {self.df.columns.tolist()}")
@@ -122,10 +114,8 @@ class DataPreparation:
         """Split data into train/test"""
         print("\n📋 Splitting data...")
         
-        # Sort by date
         self.df = self.df.sort_values('date')
         
-        # Time-based split (not random)
         split_idx = int(len(self.df) * (1 - test_size))
         
         train_data = self.df[:split_idx]
@@ -161,10 +151,8 @@ def main():
     print("=" * 60)
     
     try:
-        # Initialize
         prep = DataPreparation('data/sample_sales.csv')
         
-        # Process data pipeline
         (prep.load_and_validate()
             .handle_missing_values()
             .remove_outliers()
@@ -172,10 +160,8 @@ def main():
             .normalize_data()
             .get_statistics())
         
-        # Split data
         train_data, test_data = prep.split_data(test_size=0.2)
         
-        # Save processed data
         prep.save_processed_data('data/train_data.csv')
         test_data.to_csv('data/test_data.csv', index=False)
         
